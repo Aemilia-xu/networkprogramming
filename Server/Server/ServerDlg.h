@@ -17,7 +17,7 @@ typedef struct _SOCKET_OBJ
 	SOCKADDR_IN addrRemote;         //客户地址
 	LPFN_ACCEPTEX lpfnAcceptEx;		// 扩展函数AcceptEx的指针（仅对监听套节字而言）
 	CRITICAL_SECTION s_cs;
-	LPFN_GETACCEPTEXSOCKADDRS ipfnGetAcceptExSockaddrs;
+	LPFN_GETACCEPTEXSOCKADDRS lpfnGetAcceptExSockaddrs;
 	_SOCKET_OBJ* pNext;
 
 

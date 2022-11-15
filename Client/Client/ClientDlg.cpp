@@ -301,10 +301,10 @@ void CClientDlg::OnBnClickedButton1()
 	int res;
 	char msg[1024];
 	unsigned long long file_size = 0; //文件的大小
-	CString str;
+
 	const char* flag = "准备发送图片";
 	const char* filename = "./images/cut.png";
-	char buffer[MSGSIZE];
+	char buffer2[MSGSIZE];
 	while (1)
 	{
 		if ((res = recv(sClient, msg, 1024, 0)) == SOCKET_ERROR)
@@ -330,12 +330,12 @@ void CClientDlg::OnBnClickedButton1()
 					hFile = CreateFile(CString(filename), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 					DWORD dwNumberOfBytesRecv = 0;
 					DWORD dwCountOfBytesRecv = 0;
-					memset(buffer, 0, MSGSIZE);
+					memset(buffer2, 0, MSGSIZE);
 					//接收图片
 					do
 					{
-						dwNumberOfBytesRecv = ::recv(sClient, buffer, sizeof(buffer), 0);
-						::WriteFile(hFile, buffer, dwNumberOfBytesRecv, &dwNumberOfBytesRecv, NULL);
+						dwNumberOfBytesRecv = ::recv(sClient, buffer2, sizeof(buffer2), 0);
+						::WriteFile(hFile, buffer2, dwNumberOfBytesRecv, &dwNumberOfBytesRecv, NULL);
 						dwCountOfBytesRecv += dwNumberOfBytesRecv;
 					} while (file_size - dwCountOfBytesRecv);
 					CloseHandle(hFile);
