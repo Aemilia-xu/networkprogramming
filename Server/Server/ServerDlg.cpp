@@ -21,7 +21,7 @@
 #define WM_MY_MESSAGE (WM_USER+100)
 #define WM_MY_THREADNUM (WM_USER+101)
 #define NEW_SOCKET (WM_USER+102)
-
+#define WSA_MAXIMUM_WAIT_EVENTS 2
 // 事件句柄数组和链表地址
 //HANDLE g_events[WSA_MAXIMUM_WAIT_EVENTS];	// I/O事件句柄数组
 //int g_nBufferCount;							// 上数组中有效句柄数量
@@ -267,7 +267,7 @@ void CServerDlg::FreeSocketObj(HWND hWnd,PSOCKET_OBJ pSocket)
 	memset(message, 0, 128);
 	sprintf_s(message, "[释放连接]%s %d", inet_ntoa(pSocket->addrRemote.sin_addr), pSocket->addrRemote.sin_port);
 	::LeaveCriticalSection(&pSocket->s_cs);
-	::PostMessage(hWnd, NEW_SOCKET, (WPARAM)message, 0);
+	::SendMessage(hWnd, NEW_SOCKET, (WPARAM)message, 0);
 	::DeleteCriticalSection(&pSocket->s_cs);
 	::GlobalFree(pSocket);
 
@@ -481,7 +481,7 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 		{
 			
 			//printf(" Too much connections! \n");  
-			::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Too much connections!\n", 0);
+			::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Too much connections!\n", 0);
 			FreeSocketObj(hWnd,pClient);
 			return FALSE;
 		}
@@ -506,7 +506,7 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 		char message[128];
 		memset(message, 0, 128);
 		sprintf_s(message, "[创建连接]%s %d", inet_ntoa(pClient->addrRemote.sin_addr), pClient->addrRemote.sin_port);
-		::PostMessage(hWnd, NEW_SOCKET, (WPARAM)message, 0);
+		::SendMessage(hWnd, NEW_SOCKET, (WPARAM)message, 0);
 
 
 
@@ -522,7 +522,7 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			FreeBufferObj(pThread, pSend);
 			return FALSE;
 		}
-		::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
+		::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
 
 		//// TODO：这是之后要发送数据
 		//PBUFFER_OBJ pRecv = GetBufferObj(hWnd,pClient, BUFFER_SIZE);
@@ -553,7 +553,7 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			// 投递发送I/O（将数据回显给客户）
 			PostSend(pSend);
 
-			::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
+			::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
 		}
 		else	// 套节字关闭
 		{
@@ -610,8 +610,7 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 	// 获取参数
 	HWND hWnd = *((HWND *)lpVoid);
 
-	//测试
-	::PostMessage(hWnd, WM_MY_THREADNUM, (WPARAM)"测试输出线程信息\n", 0);
+	
 
 	// 创建监听套节字，绑定到本地端口，进入监听模式
 	int nPort = 4567;
@@ -621,12 +620,12 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 	si.sin_port = ::ntohs(nPort);
 	si.sin_addr.S_un.S_addr = INADDR_ANY;
 	if (::bind(sListen, (sockaddr*)&si, sizeof(si)) == SOCKET_ERROR) {
-		::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Failed bind()\n", 0);
+		::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Failed bind()\n", 0);
 		int error = WSAGetLastError();
 		return 0;
 	}
 	if (::listen(sListen, 200) == SOCKET_ERROR) {
-		::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Failed listen()\n", 0);
+		::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Failed listen()\n", 0);
 		int error = WSAGetLastError();
 		return 0;
 	}
@@ -667,6 +666,7 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 	for (int i = 0; i < 5; i++)
 	{
 		PostAccept(GetBufferObj(hWnd, pListen, BUFFER_SIZE)); //GetBuffer中将buffer_obj分配给空闲线程
+		Sleep(10000);
 		
 	}
 	while (TRUE);
@@ -677,50 +677,54 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 // 消息处理函数
 LRESULT CServerDlg::OnMyMessage(WPARAM wParam, LPARAM lParam) {
 	// 类型转换
+	::EnterCriticalSection(&g_cs);
 	CString str;
 	str = (char*)wParam;
 	// 显示
 	int count = dialog.GetCount();//获得行数，在之后加上发送的内容
+
 	dialog.InsertString(count, str);
+	str.Format(_T("%d"), PthreadNum);
+	threadNum.AddString(str);
+	::LeaveCriticalSection(&g_cs);
 	return 0;
 }
 
 //打印当前线程状态
 LRESULT CServerDlg::PrintThread(WPARAM wParam, LPARAM lParam) 
-{
+{	
+	::EnterCriticalSection(&g_cs);
 	CString str;
 	int count = 0,line=0;
 	line = threadInfo.GetCount();
 	str= (char*)wParam;
-	threadInfo.InsertString(line, str); 
+	threadInfo.InsertString(line, str); line++;
+	threadNum.ResetContent();
 	str.Format(_T("%d"), PthreadNum);
 	threadNum.AddString(str);
 
 	
-	//str.Format(_T("线程状态:"));
-	//threadInfo.InsertString(line, str); line++;
-	////threadNum.AddString(str);
-	//::EnterCriticalSection(&g_cs);
-	//str.Format(_T("%d"), PthreadNum);
+	str.Format(_T("线程状态:"));
+	threadInfo.InsertString(line, str); line++;
 	//threadNum.AddString(str);
-	//PTHREAD_OBJ pThread = g_pThreadList;
-	//while (pThread != NULL)
-	//{
-	//	count++;
-	//	str.Format(_T("thread #%d%d"), count, pThread->nBufferCount);
-	//	threadInfo.InsertString(line, str); line++;
-	//	pThread = pThread->pNext;
-	//}
-	//
-	//::LeaveCriticalSection(&g_cs);
 
-	//printf("CurThreadNum:%d\n", count);
+	PTHREAD_OBJ pThread = g_pThreadList;
+	while (pThread != NULL)
+	{
+		count++;
+		str.Format(_T("thread #%d nBufferCount=%d"), count, pThread->nBufferCount);
+		threadInfo.InsertString(line, str); line++;
+		pThread = pThread->pNext;
+	}
+	
+	::LeaveCriticalSection(&g_cs);
 	return 0;
 }
 
 //打印当前Socket状态
 LRESULT CServerDlg::PrintSocket(WPARAM wParam, LPARAM lParam)
 {
+	::EnterCriticalSection(&g_cs);
 	CString str;
 	int line, count = 0;;
 	str = (char*)wParam;//这里打印请求连接或者关闭连接之类的信息（要包含客户的ip地址、端口等，最好可以加个时间？）
@@ -728,7 +732,7 @@ LRESULT CServerDlg::PrintSocket(WPARAM wParam, LPARAM lParam)
 	dialog.InsertString(line, str);
 	line = 0;
 	//打印当前服务器接受的连接
-	::EnterCriticalSection(&g_cs);
+	connectionList.ResetContent();
 	PSOCKET_OBJ pSocket = g_pSocketList;
 	while (pSocket != NULL)
 	{
@@ -764,7 +768,7 @@ PTHREAD_OBJ CServerDlg::GetThreadObj(HWND hWnd)
 		g_pThreadList = pThread;
 		PthreadNum++;    //更新线程数量
 		::LeaveCriticalSection(&g_cs);
-		::PostMessage(hWnd, WM_MY_THREADNUM, (WPARAM)"创建了新线程\n", 0);
+		//::SendMessage(hWnd, WM_MY_THREADNUM, (WPARAM)"创建了新线程\n", 0);
 		
 	}
 	//更新线程数量
@@ -791,8 +795,7 @@ void CServerDlg::FreeThreadObj(HWND hWnd, PTHREAD_OBJ pThread) {
 	//更新线程数量
 	PthreadNum--;    //更新线程数量
 	::LeaveCriticalSection(&g_cs);
-	//打印线程信息
-	::PostMessage(hWnd, WM_MY_THREADNUM,(WPARAM)"释放了一个线程", 0);
+
 	//接下来释放资源
 	::CloseHandle(pThread->events[0]);
 	::DeleteCriticalSection(&pThread->cs);
@@ -925,11 +928,13 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 	ServerThreadParam *sParam =(ServerThreadParam*)lpVoid;
 	int test = sParam->test;
 	HWND hWnd = *((HWND *)sParam->hWnd);
-	::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"测试传hWnd和pthread\n", 0);
+	//测试
+	::SendMessage(hWnd, WM_MY_THREADNUM, (WPARAM)"创建了线程\n", 0);
+	//::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"测试传hWnd和pthread\n", 0);
 	PTHREAD_OBJ pThread = sParam->pThread;
 
 	/*HWND hWnd = *((HWND *)lpVoid);
-	::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"测试单独传hWnd\n", 0);*/
+	::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"测试单独传hWnd\n", 0);*/
 
 
 	
@@ -939,7 +944,7 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 		int nIndex = ::WSAWaitForMultipleEvents(pThread->nBufferCount + 1, pThread->events, FALSE, WSA_INFINITE, FALSE);
 		/*if (nIndex == WSA_WAIT_FAILED) {
 			int error = WSAGetLastError();
-			::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"WSAWaitForMultipleEvents() failed\n", 0);
+			::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"WSAWaitForMultipleEvents() failed\n", 0);
 			
 			break;
 		}*/
@@ -959,6 +964,7 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 					RebuildArray(pThread);
 					if (pThread->nBufferCount == 0) 
 					{
+						::SendMessage(hWnd, WM_MY_THREADNUM, (WPARAM)"释放了线程\n", 0);
 						FreeThreadObj(hWnd, pThread);
 						return 0;
 					}
@@ -975,7 +981,7 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 						::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
 					}
 					else
-						::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)" Unable to find socket object \n ", 0);
+						::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)" Unable to find socket object \n ", 0);
 						
 				}
 
@@ -983,6 +989,7 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 			}
 		}
 	}
+	
 	return 0;
 
 }
