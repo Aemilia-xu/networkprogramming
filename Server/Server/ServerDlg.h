@@ -80,7 +80,7 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	static PSOCKET_OBJ GetSocketObj(SOCKET s);
-	
+	static void AddSocketOBJ(HWND hWnd, PSOCKET_OBJ pSocket);
 	static void FreeSocketObj(HWND hWnd, PSOCKET_OBJ pSocket); //已修改
 	static PBUFFER_OBJ GetBufferObj(HWND hWnd,PSOCKET_OBJ pSocket, ULONG nLen);  //已修改
 	static void FreeBufferObj(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer);  //已修改
@@ -105,7 +105,7 @@ protected:
 	afx_msg LRESULT PrintThread(WPARAM wParam, LPARAM lParam);
 	//更新socket连接信息
 	afx_msg LRESULT PrintSocket(WPARAM wParam, LPARAM lParam);
-	static void AddSocketOBJ(HWND hWnd, PSOCKET_OBJ pSocket);
+	
 	DECLARE_MESSAGE_MAP()
 private:
 	CListBox threadNum;

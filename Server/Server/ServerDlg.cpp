@@ -228,8 +228,6 @@ void CServerDlg::AddSocketOBJ(HWND hWnd,PSOCKET_OBJ pSocket)
 		::EnterCriticalSection(&g_cs);
 		pSocket->pNext = g_pSocketList;
 		g_pSocketList = pSocket;
-		
-		
 		::LeaveCriticalSection(&g_cs);
 		
 		
@@ -499,8 +497,6 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			&nLocalLen,
 			(SOCKADDR**)&pRemoteAddr,
 			&nRmoteLen);
-		//pClient->addrLocal = (SOCKADDR_IN*)(pBuffer->buff + (BUFFER_SIZE - 2 * (sizeof(sockaddr_in) + 16)) + 10);
-		//pClient->addrRemote = (sockaddr_in*)((pBuffer->buff + (BUFFER_SIZE - 2 * (sizeof(sockaddr_in) + 16)) + 10) + sizeof(sockaddr_in) + 10 + 2);
 		memcpy(&pClient->addrLocal, pLocalAddr, nLocalLen);
 		memcpy(&pClient->addrRemote, pRemoteAddr, nRmoteLen);
 		char message[128];
@@ -936,8 +932,6 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 	/*HWND hWnd = *((HWND *)lpVoid);
 	::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"测试单独传hWnd\n", 0);*/
 
-
-	
 	while(TRUE)
 	{
 		//等待网络事件
