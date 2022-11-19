@@ -153,7 +153,7 @@ BOOL CServerDlg::OnInitDialog()
 	HWND hWnd = AfxGetMainWnd()->m_hWnd;
 	//将RunServer作为子线程运行，进行监听
 	CWinThread* RecvThread = AfxBeginThread(RunServer, (LPVOID)&hWnd);
-
+	Sleep(1000);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -274,7 +274,6 @@ void CServerDlg::FreeSocketObj(HWND hWnd,PSOCKET_OBJ pSocket)
 // 申请缓冲区对象
 PBUFFER_OBJ CServerDlg::GetBufferObj(HWND hWnd,PSOCKET_OBJ pSocket, ULONG nLen)
 {
-	
 	PBUFFER_OBJ pBuffer = (PBUFFER_OBJ)::GlobalAlloc(GPTR, sizeof(BUFFER_OBJ));
 	if (pBuffer != NULL)
 	{
@@ -285,7 +284,6 @@ PBUFFER_OBJ CServerDlg::GetBufferObj(HWND hWnd,PSOCKET_OBJ pSocket, ULONG nLen)
 
 		// 将新的BUFFER_OBJ分配给空闲线程
 		AssignToFreeThread(hWnd,pBuffer);
-		
 	}
 	return pBuffer;
 }
@@ -437,6 +435,60 @@ BOOL CServerDlg::PostSend(PBUFFER_OBJ pBuffer)
 	return TRUE;
 }
 
+// 发送文件
+BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer)
+{
+	//发送“传输开始”
+	char* start = "传输开始";
+	pBuffer->buff = start;
+	pBuffer->nLen = int(strlen(start));
+	PostSend(pBuffer);
+	//int count = server->fileStatus.GetCount();//获得行数，在之后加上发送的内容
+	//server->fileStatus.InsertString(count, _T("传输开始"));
+
+	// 获取文件
+	CString filename = _T("C:\\Users\\17166\\Desktop\\network.gif");
+	HANDLE hFile;
+	hFile = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	unsigned long long file_size = 0;
+	file_size = GetFileSize(hFile, NULL);
+
+
+	//if (send(sock, buffer, strlen(str), 0) == SOCKET_ERROR)
+	//{
+	//	pEdit->ReplaceSel(_T("发送失败\r\n"));
+	//	return;
+	//}
+	//else
+	//{
+	//	pEdit->ReplaceSel(_T("server:准备发送图片\r\n"));//消息上屏，清空输入，并重获焦点 
+	//}
+	////发送图片长度
+	//memset(buffer, 0, sizeof(buffer));
+	//memcpy(buffer, &file_size, sizeof(file_size) + 1);
+	//if (send(sock, buffer, sizeof(file_size) + 1, 0) == SOCKET_ERROR)
+	//{
+	//	pEdit->ReplaceSel(_T("发送失败\r\n"));
+	//	return;
+	//}
+	//else
+	//{
+	//	pEdit->ReplaceSel(_T("开始发送图片\r\n"));//消息上屏，清空输入，并重获焦点 
+	//}
+	//memset(buffer, 0, sizeof(buffer));
+	//DWORD dwNumberOfBytesRead;
+	//do
+	//{
+	//	::ReadFile(hFile, buffer, sizeof(buffer), &dwNumberOfBytesRead, NULL);
+	//	::send(sock, buffer, dwNumberOfBytesRead, 0);
+	//} while (dwNumberOfBytesRead);
+	//CloseHandle(hFile);
+	//pEdit->ReplaceSel(_T("成功发送图片\r\n"));
+	//
+	return true;
+}
+
+
 BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 {
 	PSOCKET_OBJ pSocket = pBuffer->pSocket; // 从BUFFER_OBJ对象中提取SOCKET_OBJ对象指针，为的是方便引用
@@ -477,7 +529,6 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 		PBUFFER_OBJ pSend = GetBufferObj(hWnd, pClient, BUFFER_SIZE);
 		if (pSend == NULL)
 		{
-			
 			//printf(" Too much connections! \n");  
 			::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"Too much connections!\n", 0);
 			FreeSocketObj(hWnd,pClient);
@@ -504,8 +555,6 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 		sprintf_s(message, "[创建连接]%s %d", inet_ntoa(pClient->addrRemote.sin_addr), pClient->addrRemote.sin_port);
 		::SendMessage(hWnd, NEW_SOCKET, (WPARAM)message, 0);
 
-
-
 		// 将数据复制到发送缓冲区
 		pSend->nLen = dwTrans;
 		memcpy(pSend->buff, pBuffer->buff, dwTrans);
@@ -531,9 +580,6 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 		//pRecv->nLen = BUFFER_SIZE;
 		//PostRecv(pRecv);
 
-
-		
-
 		// 继续投递接受I/O
 		PostAccept(pBuffer);
 	}
@@ -545,9 +591,15 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			// 创建一个缓冲区，以发送数据。这里就使用原来的缓冲区
 			PBUFFER_OBJ pSend = pBuffer;
 			pSend->nLen = dwTrans;
-
-			// 投递发送I/O（将数据回显给客户）
-			PostSend(pSend);
+			const char* flag = "请求发送文件";
+			
+			if (strcmp(pSend->buff, flag) != 0) {
+				// 字符串不相等，说明发送的是message，投递发送I/O（将数据回显给客户）
+				PostSend(pSend);
+			}
+			else {
+				SendFile(pSend);
+			}
 
 			::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
 		}
@@ -606,8 +658,6 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 	// 获取参数
 	HWND hWnd = *((HWND *)lpVoid);
 
-	
-
 	// 创建监听套节字，绑定到本地端口，进入监听模式
 	int nPort = 4567;
 	SOCKET sListen = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
@@ -625,9 +675,6 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 		int error = WSAGetLastError();
 		return 0;
 	}
-
-	//::bind(sListen, (sockaddr*)&si, sizeof(si));
-	//::listen(sListen, 200);
 
 	// 为监听套节字创建一个SOCKET_OBJ对象
 	PSOCKET_OBJ pListen = GetSocketObj(sListen);
@@ -676,9 +723,9 @@ LRESULT CServerDlg::OnMyMessage(WPARAM wParam, LPARAM lParam) {
 	::EnterCriticalSection(&g_cs);
 	CString str;
 	str = (char*)wParam;
+
 	// 显示
 	int count = dialog.GetCount();//获得行数，在之后加上发送的内容
-
 	dialog.InsertString(count, str);
 	str.Format(_T("%d"), PthreadNum);
 	threadNum.AddString(str);
@@ -749,11 +796,9 @@ LRESULT CServerDlg::PrintSocket(WPARAM wParam, LPARAM lParam)
 //申请线程对象，初始化其成员，并将它添加到线程对象列表中
 PTHREAD_OBJ CServerDlg::GetThreadObj(HWND hWnd)
 {
-	
 	PTHREAD_OBJ pThread = (PTHREAD_OBJ)::GlobalAlloc(GPTR, sizeof(THREAD_OBJ));
 	if (pThread != NULL)
 	{
-		
 		::InitializeCriticalSection(&pThread->cs);
 		//创建一个事件对象，用于指示该线程的句柄数组需要重建
 		pThread->events[0] = ::WSACreateEvent();
@@ -920,10 +965,11 @@ void CServerDlg::AssignToFreeThread(HWND hWnd, PBUFFER_OBJ pBuffer)
 //工作线程，负责处理客户的I/O请求
 DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 {
+	// Sleep(10000);
 	//取得本线程对象的指针和窗口对象
 	ServerThreadParam *sParam =(ServerThreadParam*)lpVoid;
 	int test = sParam->test;
-	HWND hWnd = *((HWND *)sParam->hWnd);
+	HWND hWnd = sParam->hWnd;
 	//测试
 	::SendMessage(hWnd, WM_MY_THREADNUM, (WPARAM)"创建了线程\n", 0);
 	//::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)"测试传hWnd和pthread\n", 0);
@@ -987,3 +1033,4 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 	return 0;
 
 }
+
