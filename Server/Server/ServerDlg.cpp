@@ -21,6 +21,7 @@
 #define WM_MY_MESSAGE (WM_USER+100)
 #define WM_MY_THREADNUM (WM_USER+101)
 #define NEW_SOCKET (WM_USER+102)
+#define WM_MY_FILE (WM_USER+103)
 #define WSA_MAXIMUM_WAIT_EVENTS 2
 // 事件句柄数组和链表地址
 //HANDLE g_events[WSA_MAXIMUM_WAIT_EVENTS];	// I/O事件句柄数组
@@ -105,6 +106,7 @@ BEGIN_MESSAGE_MAP(CServerDlg, CDialogEx)
 	ON_MESSAGE(WM_MY_MESSAGE, &CServerDlg::OnMyMessage)
 	ON_MESSAGE(WM_MY_THREADNUM, &CServerDlg::PrintThread)
 	ON_MESSAGE(NEW_SOCKET, &CServerDlg::PrintSocket)
+	ON_MESSAGE(WM_MY_FILE, &CServerDlg::OnMyFile)
 END_MESSAGE_MAP()
 
 
@@ -153,7 +155,7 @@ BOOL CServerDlg::OnInitDialog()
 	HWND hWnd = AfxGetMainWnd()->m_hWnd;
 	//将RunServer作为子线程运行，进行监听
 	CWinThread* RecvThread = AfxBeginThread(RunServer, (LPVOID)&hWnd);
-	Sleep(1000);
+	Sleep(1000);// 增加sleep后可保证每次运行正常显示线程
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -443,48 +445,34 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer)
 	pBuffer->buff = start;
 	pBuffer->nLen = int(strlen(start));
 	PostSend(pBuffer);
-	//int count = server->fileStatus.GetCount();//获得行数，在之后加上发送的内容
-	//server->fileStatus.InsertString(count, _T("传输开始"));
 
-	// 获取文件
-	CString filename = _T("C:\\Users\\17166\\Desktop\\network.gif");
+	// 创建文件句柄
+	CString filename = _T("./res/send.gif");
 	HANDLE hFile;
 	hFile = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	unsigned long long file_size = 0;
-	file_size = GetFileSize(hFile, NULL);
+	unsigned long long file_size = GetFileSize(hFile, NULL);
+	char FileLen[30] = { 0 };	//ull转char*
+	sprintf_s(FileLen, 30, "%llu", file_size);
+	// 发送文件大小
+	pBuffer->buff = FileLen;
+	pBuffer->nLen = int(strlen(FileLen));
+	PostSend(pBuffer);
+	// 读取文件
+	char Buffer[1024];
+	DWORD dwNumberOfBytesRead;
+	do
+	{
+		::ReadFile(hFile, Buffer, sizeof(Buffer), &dwNumberOfBytesRead, NULL);
+		pBuffer->buff = Buffer;
+		pBuffer->nLen = sizeof(Buffer);
+		PostSend(pBuffer);
+	} while (dwNumberOfBytesRead);
+	CloseHandle(hFile);
 
-
-	//if (send(sock, buffer, strlen(str), 0) == SOCKET_ERROR)
-	//{
-	//	pEdit->ReplaceSel(_T("发送失败\r\n"));
-	//	return;
-	//}
-	//else
-	//{
-	//	pEdit->ReplaceSel(_T("server:准备发送图片\r\n"));//消息上屏，清空输入，并重获焦点 
-	//}
-	////发送图片长度
-	//memset(buffer, 0, sizeof(buffer));
-	//memcpy(buffer, &file_size, sizeof(file_size) + 1);
-	//if (send(sock, buffer, sizeof(file_size) + 1, 0) == SOCKET_ERROR)
-	//{
-	//	pEdit->ReplaceSel(_T("发送失败\r\n"));
-	//	return;
-	//}
-	//else
-	//{
-	//	pEdit->ReplaceSel(_T("开始发送图片\r\n"));//消息上屏，清空输入，并重获焦点 
-	//}
-	//memset(buffer, 0, sizeof(buffer));
-	//DWORD dwNumberOfBytesRead;
-	//do
-	//{
-	//	::ReadFile(hFile, buffer, sizeof(buffer), &dwNumberOfBytesRead, NULL);
-	//	::send(sock, buffer, dwNumberOfBytesRead, 0);
-	//} while (dwNumberOfBytesRead);
-	//CloseHandle(hFile);
-	//pEdit->ReplaceSel(_T("成功发送图片\r\n"));
-	//
+	char* end = "传输结束";
+	pBuffer->buff = end;
+	pBuffer->nLen = int(strlen(end));
+	//PostSend(pBuffer);
 	return true;
 }
 
@@ -596,12 +584,14 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			if (strcmp(pSend->buff, flag) != 0) {
 				// 字符串不相等，说明发送的是message，投递发送I/O（将数据回显给客户）
 				PostSend(pSend);
+				::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
 			}
-			else {
+			else {// 发送文件
+				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输开始"), 0);
 				SendFile(pSend);
+				Sleep(1000);
+				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输结束"), 0);
 			}
-
-			::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
 		}
 		else	// 套节字关闭
 		{
@@ -691,6 +681,7 @@ UINT CServerDlg::RunServer(LPVOID lpVoid) {
 		&dwBytes,
 		NULL,
 		NULL);
+	
 	// 加载扩展函数GetAcceptExSockaddrs
 	GUID GuidGetAcceptExSockaddrs = WSAID_GETACCEPTEXSOCKADDRS;
 	::WSAIoctl(pListen->s,
@@ -730,6 +721,18 @@ LRESULT CServerDlg::OnMyMessage(WPARAM wParam, LPARAM lParam) {
 	str.Format(_T("%d"), PthreadNum);
 	threadNum.AddString(str);
 	::LeaveCriticalSection(&g_cs);
+	return 0;
+}
+
+// fileStatus消息处理函数
+LRESULT CServerDlg::OnMyFile(WPARAM wParam, LPARAM lParam) {
+	// 类型转换
+	CString str;
+	str = (char*)wParam;
+
+	// 显示
+	int count = fileStatus.GetCount();//获得行数，在之后加上发送的内容
+	fileStatus.InsertString(count, str);
 	return 0;
 }
 

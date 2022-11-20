@@ -107,6 +107,8 @@ protected:
 	afx_msg LRESULT PrintThread(WPARAM wParam, LPARAM lParam);
 	//更新socket连接信息
 	afx_msg LRESULT PrintSocket(WPARAM wParam, LPARAM lParam);
+	//更新文件传输状态
+	afx_msg LRESULT OnMyFile(WPARAM wParam, LPARAM lParam);
 	
 	DECLARE_MESSAGE_MAP()
 private:

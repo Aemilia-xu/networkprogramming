@@ -18,8 +18,9 @@
 
 #pragma warning(disable:4996)
 #pragma comment(lib, "ws2_32.lib")
-// 自定义消息id `
+// 自定义消息id 
 #define WM_MY_MESSAGE (WM_USER+100)
+#define WM_MY_FILE (WM_USER+103)
 struct threadParam
 {
 	HWND hWnd;
@@ -72,6 +73,7 @@ void CClientDlg::DoDataExchange(CDataExchange* pDX)
 
 	DDX_Control(pDX, IDC_EDIT1, editSendContent);
 	DDX_Control(pDX, IDC_LIST1, lbChatContent);
+	DDX_Control(pDX, IDC_LIST2, FileBox);
 }
 
 BEGIN_MESSAGE_MAP(CClientDlg, CDialogEx)
@@ -83,9 +85,9 @@ BEGIN_MESSAGE_MAP(CClientDlg, CDialogEx)
 	ON_BN_CLICKED(IDCANCEL, &CClientDlg::OnBnClickedCancel)
 	ON_BN_CLICKED(IDC_BUTTON1, &CClientDlg::OnBnClickedButton1)
 
-	// 映射消息处理函数 `
+	// 映射消息处理函数 
 	ON_MESSAGE(WM_MY_MESSAGE, &CClientDlg::OnMyMessage)
-	ON_EN_CHANGE(IDC_EDIT1, &CClientDlg::OnEnChangeEdit1)
+	ON_MESSAGE(WM_MY_FILE, &CClientDlg::OnMyFile)
 END_MESSAGE_MAP()
 
 
@@ -211,7 +213,7 @@ HCURSOR CClientDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-// 消息处理函数
+// listbox消息处理函数
 LRESULT CClientDlg::OnMyMessage(WPARAM wParam, LPARAM lParam) {
 	// 类型转换
 	CString str;
@@ -222,6 +224,18 @@ LRESULT CClientDlg::OnMyMessage(WPARAM wParam, LPARAM lParam) {
 	lbChatContent.InsertString(count + 1, str);
 	return 0;
 }
+
+// file listbox消息处理函数
+LRESULT CClientDlg::OnMyFile(WPARAM wParam, LPARAM lParam) {
+	// 类型转换
+	CString str;
+	str = (char*)wParam;
+	// 显示
+	int count = FileBox.GetCount();//获得行数，在之后加上发送的内容
+	FileBox.InsertString(count, str);
+	return 0;
+}
+
 
 // Send message按钮
 void CClientDlg::OnBnClickedOk()
@@ -264,14 +278,47 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 	}
 
 	// 接收数据
-	char buf[1024];
+	char msg[1024];
+	int res;
+	unsigned long long file_size = 0; //文件的大小
+	const char* filename = "./res/receive.gif";
+	char buffer[MSGSIZE];
 	while (TRUE)
 	{
-		int nRecv = ::recv(m_socket, buf, 1024, 0);
+		int nRecv = ::recv(m_socket, msg, 1024, 0);
 		if (nRecv > 0)
 		{
-			buf[nRecv] = '\0';
-			::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)buf, 0);
+			msg[nRecv] = '\0';
+			if (strcmp(msg, "传输开始") == 0) {//开始接收文件
+				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)msg, 0);
+				// 先接收文件大小
+				if ((res = ::recv(m_socket, (char*)&file_size, sizeof(unsigned long long) + 1, NULL)) > 0)
+				{
+					unsigned long long maxvalue = file_size;    //此处不太稳妥 当数据很大时可能会出现异常
+					HANDLE hFile;
+					hFile = CreateFile(CString(filename), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+					DWORD dwNumberOfBytesRecv = 0;
+					DWORD dwCountOfBytesRecv = 0;
+					memset(buffer, 0, MSGSIZE);
+					//接收文件
+					do
+					{
+						dwNumberOfBytesRecv = ::recv(m_socket, buffer, sizeof(buffer), 0);
+						::WriteFile(hFile, buffer, dwNumberOfBytesRecv, &dwNumberOfBytesRecv, NULL);
+						dwCountOfBytesRecv += dwNumberOfBytesRecv;
+					} while (file_size - dwCountOfBytesRecv);
+					CloseHandle(hFile);
+					AfxMessageBox(_T("接收结束"));
+				}
+
+			}
+			else if (strcmp(msg, "传输结束") == 0) {
+				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)msg, 0);
+			}
+			else {//传输文字
+				::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)msg, 0);
+			}
+
 		}
 	}
 }
@@ -292,59 +339,6 @@ void CClientDlg::OnBnClickedButton1()
 		MessageBox(_T("Request failed.\n"));
 		return;
 	}
-	else
-	{
-		MessageBox(_T("Request Success.\n"));
-	}
-
-	// 接收文件
-	int res;
-	char msg[1024];
-	unsigned long long file_size = 0; //文件的大小
-
-	const char* flag = "准备发送图片";
-	const char* filename = "./images/cut.png";
-	char buffer2[MSGSIZE];
-	while (1)
-	{
-		if ((res = recv(sClient, msg, 1024, 0)) == SOCKET_ERROR)
-		{
-			MessageBox(_T("失去连接"));
-			return;
-		}
-		else
-		{
-			msg[res] = '\0';
-			if (strcmp(msg, flag) == 0) {
-				MessageBox(_T("服务器要发送图片了，准备接收"));
-
-				if ((res = recv(sClient, (char*)&file_size, sizeof(unsigned long long) + 1, NULL)) == -1)
-				{
-					MessageBox(_T("失去连接"));
-					return;
-				}
-				else {
-					unsigned short maxvalue = file_size;    //此处不太稳妥 当数据很大时可能会出现异常
-					MessageBox(_T("开始接收图片"));
-					HANDLE hFile;
-					hFile = CreateFile(CString(filename), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-					DWORD dwNumberOfBytesRecv = 0;
-					DWORD dwCountOfBytesRecv = 0;
-					memset(buffer2, 0, MSGSIZE);
-					//接收图片
-					do
-					{
-						dwNumberOfBytesRecv = ::recv(sClient, buffer2, sizeof(buffer2), 0);
-						::WriteFile(hFile, buffer2, dwNumberOfBytesRecv, &dwNumberOfBytesRecv, NULL);
-						dwCountOfBytesRecv += dwNumberOfBytesRecv;
-					} while (file_size - dwCountOfBytesRecv);
-					CloseHandle(hFile);
-					MessageBox(_T("文件接收成功"));
-				}
-			}
-		}
-	}
-
 }
 
 // cancel按钮
@@ -360,13 +354,3 @@ void CClientDlg::OnBnClickedCancel()
 
 }
 
-
-void CClientDlg::OnEnChangeEdit1()
-{
-	// TODO:  如果该控件是 RICHEDIT 控件，它将不
-	// 发送此通知，除非重写 CDialogEx::OnInitDialog()
-	// 函数并调用 CRichEditCtrl().SetEventMask()，
-	// 同时将 ENM_CHANGE 标志“或”运算到掩码中。
-
-	// TODO:  在此添加控件通知处理程序代码
-}

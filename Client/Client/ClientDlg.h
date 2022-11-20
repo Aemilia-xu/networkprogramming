@@ -46,11 +46,12 @@ public:
 
 	// 消息处理函数
 	afx_msg LRESULT OnMyMessage(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnMyFile(WPARAM wParam, LPARAM lParam);
 	//接收函数，实现监听、接收消息的功能
 	static UINT RecvProc(LPVOID lpVoid);
 
 	SOCKET sClient;
 	CWinThread* RecvThread;
-
-	afx_msg void OnEnChangeEdit1();
+	// 文件传输状态显示框
+	CListBox FileBox;
 };
