@@ -438,7 +438,7 @@ BOOL CServerDlg::PostSend(PBUFFER_OBJ pBuffer)
 }
 
 // 发送文件
-BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer)
+BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 {
 	//发送“传输开始”
 	char* start = "传输开始";
@@ -457,6 +457,8 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer)
 	pBuffer->buff = FileLen;
 	pBuffer->nLen = int(strlen(FileLen));
 	PostSend(pBuffer);
+	::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输文件大小："), 0);
+	::PostMessage(hWnd, WM_MY_FILE, (WPARAM)(FileLen), 0);
 	// 读取文件
 	char Buffer[1024];
 	DWORD dwNumberOfBytesRead;
@@ -472,7 +474,7 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer)
 	char* end = "传输结束";
 	pBuffer->buff = end;
 	pBuffer->nLen = int(strlen(end));
-	//PostSend(pBuffer);
+	PostSend(pBuffer);
 	return true;
 }
 
@@ -588,7 +590,7 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			}
 			else {// 发送文件
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输开始"), 0);
-				SendFile(pSend);
+				SendFile(pSend, hWnd);
 				Sleep(1000);
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输结束"), 0);
 			}

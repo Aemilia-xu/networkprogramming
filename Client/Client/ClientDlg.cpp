@@ -280,7 +280,7 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 	// 接收数据
 	char msg[1024];
 	int res;
-	unsigned long long file_size = 0; //文件的大小
+	char FileLen[30]; //文件的大小
 	const char* filename = "./res/receive.gif";
 	char buffer[MSGSIZE];
 	while (TRUE)
@@ -292,8 +292,10 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 			if (strcmp(msg, "传输开始") == 0) {//开始接收文件
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)msg, 0);
 				// 先接收文件大小
-				if ((res = ::recv(m_socket, (char*)&file_size, sizeof(unsigned long long) + 1, NULL)) > 0)
+				if ((res = ::recv(m_socket, FileLen, 1024, NULL)) > 0)
 				{
+					FileLen[res] = '\0';
+					//TODO文件大小
 					unsigned long long maxvalue = file_size;    //此处不太稳妥 当数据很大时可能会出现异常
 					HANDLE hFile;
 					hFile = CreateFile(CString(filename), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -304,16 +306,22 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 					do
 					{
 						dwNumberOfBytesRecv = ::recv(m_socket, buffer, sizeof(buffer), 0);
-						::WriteFile(hFile, buffer, dwNumberOfBytesRecv, &dwNumberOfBytesRecv, NULL);
-						dwCountOfBytesRecv += dwNumberOfBytesRecv;
+						char bcopy[MSGSIZE];
+						strcpy(bcopy, buffer);
+						bcopy[dwNumberOfBytesRecv]= '\0';
+						if (strcmp(bcopy, "传输结束") == 0) {//收到传输结束
+							CloseHandle(hFile);
+							AfxMessageBox(_T("接收结束"));
+							::PostMessage(hWnd, WM_MY_FILE, (WPARAM)msg, 0);
+							break;
+						}
+						else {//还在传文件
+							::WriteFile(hFile, buffer, dwNumberOfBytesRecv, &dwNumberOfBytesRecv, NULL);
+							dwCountOfBytesRecv += dwNumberOfBytesRecv;
+						}
 					} while (file_size - dwCountOfBytesRecv);
-					CloseHandle(hFile);
-					AfxMessageBox(_T("接收结束"));
 				}
 
-			}
-			else if (strcmp(msg, "传输结束") == 0) {
-				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)msg, 0);
 			}
 			else {//传输文字
 				::PostMessage(hWnd, WM_MY_MESSAGE, (WPARAM)msg, 0);

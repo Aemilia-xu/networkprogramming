@@ -92,7 +92,7 @@ protected:
 	static BOOL PostSend(PBUFFER_OBJ pBuffer);//已修改
 	static BOOL HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd); //已修改
 	static UINT RunServer(LPVOID lpVoid);    //修改
-	static BOOL SendFile(PBUFFER_OBJ pBuffer);//发送文件
+	static BOOL SendFile(PBUFFER_OBJ pBuffer, HWND hWnd);//发送文件
 	//申请和释放线程对象的函数
 	static PTHREAD_OBJ GetThreadObj(HWND hWnd);
 	static void FreeThreadObj(HWND hWnd,PTHREAD_OBJ pThread);
