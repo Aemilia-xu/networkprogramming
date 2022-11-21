@@ -151,8 +151,7 @@ BOOL CClientDlg::OnInitDialog()
 	if (::connect(sClient, (sockaddr*)&server, sizeof(server)) == SOCKET_ERROR) {
 		MessageBox(_T("Failed connect()\n"));
 		int error = WSAGetLastError();
-		//int error = GetLastError();
-		return false;
+		return FALSE;
 	}
 
 	struct threadParam tParam;
@@ -160,7 +159,7 @@ BOOL CClientDlg::OnInitDialog()
 	tParam.m_socket = sClient;
 	//将RecvProc作为子线程运行，进行监听
 	RecvThread = AfxBeginThread(RecvProc, (LPVOID)&tParam);
-
+	Sleep(1000);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -278,9 +277,9 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 	}
 
 	// 接收数据
-	char msg[1024];
+	char msg[MSGSIZE];
 	int res;
-	char FileLen[30]; //文件的大小
+	char FileLen[MSGSIZE+1]; //文件的大小
 	const char* filename = "./res/receive.gif";
 	char buffer[MSGSIZE];
 	while (TRUE)
@@ -295,8 +294,9 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 				if ((res = ::recv(m_socket, FileLen, 1024, NULL)) > 0)
 				{
 					FileLen[res] = '\0';
-					//TODO文件大小
-					unsigned long long maxvalue = file_size;    //此处不太稳妥 当数据很大时可能会出现异常
+					unsigned int file_size = strtol(FileLen, NULL, 10);	// 文件大小从char*类型转换
+
+					// 创建文件句柄
 					HANDLE hFile;
 					hFile = CreateFile(CString(filename), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 					DWORD dwNumberOfBytesRecv = 0;
@@ -306,13 +306,13 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 					do
 					{
 						dwNumberOfBytesRecv = ::recv(m_socket, buffer, sizeof(buffer), 0);
-						char bcopy[MSGSIZE];
+						char bcopy[MSGSIZE*2];
 						strcpy(bcopy, buffer);
 						bcopy[dwNumberOfBytesRecv]= '\0';
 						if (strcmp(bcopy, "传输结束") == 0) {//收到传输结束
 							CloseHandle(hFile);
-							AfxMessageBox(_T("接收结束"));
-							::PostMessage(hWnd, WM_MY_FILE, (WPARAM)msg, 0);
+							// AfxMessageBox(_T("接收结束"));
+							::PostMessage(hWnd, WM_MY_FILE, (WPARAM)bcopy, 0);
 							break;
 						}
 						else {//还在传文件
