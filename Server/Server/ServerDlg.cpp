@@ -10,6 +10,7 @@
 #include "Server.h"
 #include "ServerDlg.h"
 #include "afxdialogex.h"
+#include <string>
 
 
 #ifdef _DEBUG
@@ -226,15 +227,11 @@ void CServerDlg::AddSocketOBJ(HWND hWnd,PSOCKET_OBJ pSocket)
 {
 	if (pSocket != NULL)
 	{
-		
 		::EnterCriticalSection(&g_cs);
 		pSocket->pNext = g_pSocketList;
 		g_pSocketList = pSocket;
 		::LeaveCriticalSection(&g_cs);
-		
-		
 	}
-	
 }
 
 
@@ -287,6 +284,7 @@ PBUFFER_OBJ CServerDlg::GetBufferObj(HWND hWnd,PSOCKET_OBJ pSocket, ULONG nLen)
 		// 将新的BUFFER_OBJ分配给空闲线程
 		AssignToFreeThread(hWnd,pBuffer);
 	}
+	::InitializeCriticalSection(&pBuffer->s_cs);
 	return pBuffer;
 }
 
@@ -326,9 +324,9 @@ void CServerDlg::FreeBufferObj(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer)
 	if (bFind)
 	{
 		::CloseHandle(pBuffer->ol.hEvent);
+		::DeleteCriticalSection(&pBuffer->s_cs);
 		::GlobalFree(pBuffer->buff);
 		::GlobalFree(pBuffer);
-		
 	}
 }
 
@@ -344,18 +342,6 @@ PBUFFER_OBJ CServerDlg::FindBufferObj(PTHREAD_OBJ pThread, int nIndex)
 	}
 	return pBuffer;
 }
-
-//// 更新事件句柄数组
-//void CServerDlg::RebuildArray()
-//{
-//	PBUFFER_OBJ pBuffer = g_pBufferHead;
-//	int i = 1;
-//	while (pBuffer != NULL)
-//	{
-//		g_events[i++] = pBuffer->ol.hEvent;
-//		pBuffer = pBuffer->pNext;
-//	}
-//}
 
 // 提交接受连接的缓冲区对象
 BOOL CServerDlg::PostAccept(PBUFFER_OBJ pBuffer)
@@ -391,7 +377,7 @@ BOOL CServerDlg::PostAccept(PBUFFER_OBJ pBuffer)
 };
 
 // 提交接收数据的缓冲区对象
-BOOL CServerDlg::PostRecv(PBUFFER_OBJ pBuffer)
+BOOL CServerDlg::PostRecv(PSOCKET_OBJ pSocket,PBUFFER_OBJ pBuffer)
 {
 	// 设置I/O类型，增加套节字上的重叠I/O计数
 	pBuffer->nOperation = OP_READ;
@@ -409,6 +395,7 @@ BOOL CServerDlg::PostRecv(PBUFFER_OBJ pBuffer)
 		if (::WSAGetLastError() != WSA_IO_PENDING)
 			return FALSE;
 	}
+
 	return TRUE;
 }
 
@@ -420,21 +407,50 @@ BOOL CServerDlg::PostSend(PBUFFER_OBJ pBuffer)
 	::EnterCriticalSection(&pBuffer->pSocket->s_cs);
 	pBuffer->pSocket->nOutstandingOps++;
 	::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
-	//TODO
-	// 这里或许要在窗口中显示发送的内容？
-	// 投递此重叠I/O
-	DWORD dwBytes;
-	DWORD dwFlags = 0;
-	WSABUF buf;
-	buf.buf = pBuffer->buff;
-	buf.len = pBuffer->nLen;
-	if (::WSASend(pBuffer->pSocket->s,
-		&buf, 1, &dwBytes, dwFlags, &pBuffer->ol, NULL) != NO_ERROR)
-	{
-		if (::WSAGetLastError() != WSA_IO_PENDING)
-			return FALSE;
+
+	// 如果与要读的下一个序列号相等，则读这块缓冲区
+	if (pBuffer->nSequenceNumber == pBuffer->pSocket->nCurrentReadSequence) {	// socket当前想读的序列号是缓存区对象的序列号
+		// 投递此重叠I/O
+		DWORD dwBytes;
+		DWORD dwFlags = 0;
+		WSABUF buf;
+		buf.buf = pBuffer->buff;
+		buf.len = pBuffer->nLen;
+		if (::WSASend(pBuffer->pSocket->s,
+			&buf, 1, &dwBytes, dwFlags, &pBuffer->ol, NULL) != NO_ERROR)
+		{
+			if (::WSAGetLastError() != WSA_IO_PENDING)
+				return FALSE;
+		}
+		return TRUE;
 	}
-	return TRUE;
+	// 如果不相等，则说明没有按顺序接收数据，将这块缓冲区保存到连接的pOutOfOrderReads列表中
+	// 列表中的缓冲区是按照其序列号从小到大的顺序排列的
+	else {
+		PBUFFER_OBJ ptr = pBuffer->pSocket->pOutOfOrderReads;
+		PBUFFER_OBJ pPre = NULL;
+		while (ptr != NULL){
+			if (pBuffer->nSequenceNumber < ptr->nSequenceNumber)	break;
+			pPre = ptr;
+			ptr = ptr->pNext;
+		}
+		if (pPre == NULL) { // 应该插入到表头
+			pBuffer->pNext = pBuffer->pSocket->pOutOfOrderReads;
+			pBuffer->pSocket->pOutOfOrderReads = pBuffer;
+		}
+		else {// 应该插入到表的中间
+			pBuffer->pNext = pPre->pNext;
+			pPre->pNext = pBuffer->pNext;
+		}
+
+		// 检查表头元素的序列号，如果与要读的序列号一致，就将它从表中移除，返回给用户
+		ptr = pBuffer->pSocket->pOutOfOrderReads;
+		if (ptr != NULL && (ptr->nSequenceNumber == pBuffer->pSocket->nCurrentReadSequence)){
+			pBuffer->pSocket->pOutOfOrderReads = ptr->pNext;
+			PostSend(ptr);
+		}
+		return NULL;
+	}
 }
 
 // 发送文件
@@ -444,6 +460,15 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 	char* start = "传输开始";
 	pBuffer->buff = start;
 	pBuffer->nLen = int(strlen(start));
+
+	::EnterCriticalSection(&pBuffer->pSocket->s_cs);
+	pBuffer->pSocket->nCurrentReadSequence++;
+	pBuffer->pSocket->nReadSequence++;//下一个序列号
+	::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
+	::EnterCriticalSection(&pBuffer->s_cs);
+	pBuffer->nSequenceNumber++;
+	::LeaveCriticalSection(&pBuffer->s_cs);
+
 	PostSend(pBuffer);
 
 	// 创建文件句柄
@@ -456,6 +481,15 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 	// 发送文件大小
 	pBuffer->buff = FileLen;
 	pBuffer->nLen = int(strlen(FileLen));
+
+	::EnterCriticalSection(&pBuffer->pSocket->s_cs);
+	pBuffer->pSocket->nCurrentReadSequence++;
+	pBuffer->pSocket->nReadSequence++;//下一个序列号
+	::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
+	::EnterCriticalSection(&pBuffer->s_cs);
+	pBuffer->nSequenceNumber++;
+	::LeaveCriticalSection(&pBuffer->s_cs);
+
 	PostSend(pBuffer);
 	::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输文件大小："), 0);
 	::PostMessage(hWnd, WM_MY_FILE, (WPARAM)(FileLen), 0);
@@ -467,6 +501,14 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 		::ReadFile(hFile, Buffer, sizeof(Buffer), &dwNumberOfBytesRead, NULL);
 		pBuffer->buff = Buffer;
 		pBuffer->nLen = sizeof(Buffer);
+
+		::EnterCriticalSection(&pBuffer->pSocket->s_cs);
+		pBuffer->pSocket->nCurrentReadSequence++;
+		pBuffer->pSocket->nReadSequence++;//下一个序列号
+		::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
+		::EnterCriticalSection(&pBuffer->s_cs);
+		pBuffer->nSequenceNumber++;
+		::LeaveCriticalSection(&pBuffer->s_cs);
 		PostSend(pBuffer);
 	} while (dwNumberOfBytesRead);
 	CloseHandle(hFile);
@@ -474,6 +516,14 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 	char* end = "传输结束";
 	pBuffer->buff = end;
 	pBuffer->nLen = int(strlen(end));
+
+	::EnterCriticalSection(&pBuffer->pSocket->s_cs);
+	pBuffer->pSocket->nCurrentReadSequence++;
+	pBuffer->pSocket->nReadSequence++;//下一个序列号
+	::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
+	::EnterCriticalSection(&pBuffer->s_cs);
+	pBuffer->nSequenceNumber++;
+	::LeaveCriticalSection(&pBuffer->s_cs);
 	PostSend(pBuffer);
 	return true;
 }
@@ -549,6 +599,14 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 		pSend->nLen = dwTrans;
 		memcpy(pSend->buff, pBuffer->buff, dwTrans);
 
+		::EnterCriticalSection(&pBuffer->pSocket->s_cs);
+		pSend->pSocket->nCurrentReadSequence = 0;
+		pSend->pSocket->nReadSequence = pSend->pSocket->nCurrentReadSequence + 1;//下一个序列号
+		::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
+		::EnterCriticalSection(&pBuffer->s_cs);
+		pSend->nSequenceNumber = 0;
+		::LeaveCriticalSection(&pBuffer->s_cs);
+
 		// 投递此发送I/O（将数据回显给客户）
 		if (!PostSend(pSend))
 		{
@@ -558,17 +616,6 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			return FALSE;
 		}
 		::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
-
-		//// TODO：这是之后要发送数据
-		//PBUFFER_OBJ pRecv = GetBufferObj(hWnd,pClient, BUFFER_SIZE);
-		//if (pSend == NULL)
-		//{
-		//	printf(" Too much buffers! \n");
-		//	FreeSocketObj(hWnd,pClient);
-		//	return FALSE;
-		//}
-		//pRecv->nLen = BUFFER_SIZE;
-		//PostRecv(pRecv);
 
 		// 继续投递接受I/O
 		PostAccept(pBuffer);
@@ -582,16 +629,23 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			PBUFFER_OBJ pSend = pBuffer;
 			pSend->nLen = dwTrans;
 			const char* flag = "请求发送文件";
-			
+
 			if (strcmp(pSend->buff, flag) != 0) {
 				// 字符串不相等，说明发送的是message，投递发送I/O（将数据回显给客户）
+				::EnterCriticalSection(&pBuffer->pSocket->s_cs);
+				pBuffer->pSocket->nCurrentReadSequence++;
+				pBuffer->pSocket->nReadSequence++;//下一个序列号
+				::LeaveCriticalSection(&pBuffer->pSocket->s_cs);
+				::EnterCriticalSection(&pBuffer->s_cs);
+				pBuffer->nSequenceNumber++;
+				::LeaveCriticalSection(&pBuffer->s_cs);
 				PostSend(pSend);
 				::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)pBuffer->buff, 0);
 			}
 			else {// 发送文件
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输开始"), 0);
 				SendFile(pSend, hWnd);
-				Sleep(1000);
+				Sleep(500);
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输结束"), 0);
 			}
 		}
@@ -622,7 +676,7 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			//TODO:这里是要继续使用呢，还是直接释放呢？
 			// 继续使用这个缓冲区投递接收数据的请求
 			pBuffer->nLen = BUFFER_SIZE;
-			PostRecv(pBuffer);
+			PostRecv(pSocket,pBuffer);
 		}
 		else	// 套节字关闭
 		{
@@ -1028,9 +1082,7 @@ DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 					else
 						::SendMessage(hWnd, WM_MY_MESSAGE, (WPARAM)" Unable to find socket object \n ", 0);
 						
-				}
-
-				
+				}				
 			}
 		}
 	}

@@ -8,8 +8,28 @@
 
 #pragma once
 
+typedef struct _SOCKET_OBJ SOCKET_OBJ, * PSOCKET_OBJ;
+// 缓冲区对象
+typedef struct _BUFFER_OBJ
+{
+	OVERLAPPED ol;			// 重叠结构
+	char* buff;				// send/recv/AcceptEx所使用的缓冲区
+	int nLen;				// buff的长度
+	PSOCKET_OBJ pSocket;	// 此I/O所属的套节字对象
+	ULONG nSequenceNumber; // 此 I/O 的序列号
+
+	int nOperation;			// 提交的操作类型
+#define OP_ACCEPT	1
+#define OP_READ		2
+#define OP_WRITE	3
+
+	SOCKET sAccept;			// 用来保存AcceptEx接受的客户套节字（仅对监听套节字而言）
+	_BUFFER_OBJ* pNext;
+	CRITICAL_SECTION s_cs;
+} BUFFER_OBJ, * PBUFFER_OBJ;
+
 // 套接字对象
-typedef struct _SOCKET_OBJ
+struct _SOCKET_OBJ
 {
 	SOCKET s;						// 套节字句柄
 	int nOutstandingOps;			// 记录此套节字上的重叠I/O数量
@@ -20,26 +40,10 @@ typedef struct _SOCKET_OBJ
 	LPFN_GETACCEPTEXSOCKADDRS lpfnGetAcceptExSockaddrs;
 	_SOCKET_OBJ* pNext;
 
-
-} SOCKET_OBJ, * PSOCKET_OBJ;
-
-// 缓冲区对象
-typedef struct _BUFFER_OBJ
-{
-	OVERLAPPED ol;			// 重叠结构
-	char* buff;				// send/recv/AcceptEx所使用的缓冲区
-	int nLen;				// buff的长度
-	PSOCKET_OBJ pSocket;	// 此I/O所属的套节字对象
-
-	int nOperation;			// 提交的操作类型
-#define OP_ACCEPT	1
-#define OP_READ		2
-#define OP_WRITE	3
-
-	SOCKET sAccept;			// 用来保存AcceptEx接受的客户套节字（仅对监听套节字而言）
-	_BUFFER_OBJ* pNext;
-} BUFFER_OBJ, * PBUFFER_OBJ;
-
+	ULONG nReadSequence; // 安排给接收的下一个序列号
+	ULONG nCurrentReadSequence; // 当前要读的序列号
+	_BUFFER_OBJ* pOutOfOrderReads; // 记录没有按顺序完成的读 I/O
+};
 
 
 //线程对象
@@ -88,7 +92,7 @@ protected:
 	static PBUFFER_OBJ FindBufferObj(PTHREAD_OBJ pThread, int nIndex); //已修改
 	//static void RebuildArray();
 	static BOOL PostAccept(PBUFFER_OBJ pBuffer); //已修改
-	static BOOL PostRecv(PBUFFER_OBJ pBuffer);//已修改
+	static BOOL PostRecv(PSOCKET_OBJ pSocket, PBUFFER_OBJ pBuffer);//已修改
 	static BOOL PostSend(PBUFFER_OBJ pBuffer);//已修改
 	static BOOL HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd); //已修改
 	static UINT RunServer(LPVOID lpVoid);    //修改

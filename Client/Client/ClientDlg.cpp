@@ -312,6 +312,7 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 						if (strcmp(bcopy, "传输结束") == 0) {//收到传输结束
 							CloseHandle(hFile);
 							// AfxMessageBox(_T("接收结束"));
+							Sleep(500);
 							::PostMessage(hWnd, WM_MY_FILE, (WPARAM)bcopy, 0);
 							break;
 						}
