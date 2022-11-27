@@ -118,7 +118,6 @@ protected:
 private:
 	CListBox threadNum;
 	CListBox connectionList;
-	CListBox clientList;
 	CListBox threadInfo;
 	CListBox dialog;
 	CListBox fileStatus;

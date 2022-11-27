@@ -93,7 +93,6 @@ void CServerDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST2, threadNum);
 	DDX_Control(pDX, IDC_LIST3, connectionList);
-	DDX_Control(pDX, IDC_LIST7, clientList);
 	DDX_Control(pDX, IDC_LIST5, threadInfo);
 	DDX_Control(pDX, IDC_LIST6, dialog);
 	DDX_Control(pDX, IDC_LIST8, fileStatus);
