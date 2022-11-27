@@ -12,7 +12,7 @@
 #define new DEBUG_NEW
 #endif
 
-#define SERVER_ADDRESS "127.0.0.1"
+#define SERVER_ADDRESS "192.168.1.101"
 #define PORT           4567
 #define MSGSIZE        1024
 
@@ -280,7 +280,7 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 	char msg[MSGSIZE];
 	int res;
 	char FileLen[MSGSIZE+1]; //文件的大小
-	const char* filename = "./res/receive.gif";
+	const char* filename = "./res/receive.txt";
 	char buffer[MSGSIZE];
 	while (TRUE)
 	{
@@ -301,10 +301,10 @@ UINT CClientDlg::RecvProc(LPVOID lpVoid) {
 					hFile = CreateFile(CString(filename), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 					DWORD dwNumberOfBytesRecv = 0;
 					DWORD dwCountOfBytesRecv = 0;
-					memset(buffer, 0, MSGSIZE);
 					//接收文件
 					do
 					{
+						memset(buffer, 0, MSGSIZE);
 						dwNumberOfBytesRecv = ::recv(m_socket, buffer, sizeof(buffer), 0);
 						char bcopy[MSGSIZE*2];
 						strcpy(bcopy, buffer);

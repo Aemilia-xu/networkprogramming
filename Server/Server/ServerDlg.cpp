@@ -472,7 +472,7 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 	PostSend(pBuffer);
 
 	// 创建文件句柄
-	CString filename = _T("./res/send.gif");
+	CString filename = _T("./res/send.txt");
 	HANDLE hFile;
 	hFile = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	unsigned long long file_size = GetFileSize(hFile, NULL);
@@ -493,11 +493,13 @@ BOOL CServerDlg::SendFile(PBUFFER_OBJ pBuffer, HWND hWnd)
 	PostSend(pBuffer);
 	::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输文件大小："), 0);
 	::PostMessage(hWnd, WM_MY_FILE, (WPARAM)(FileLen), 0);
+	Sleep(1000);
 	// 读取文件
 	char Buffer[1024];
 	DWORD dwNumberOfBytesRead;
 	do
 	{
+		memset(Buffer, 0, 1024);
 		::ReadFile(hFile, Buffer, sizeof(Buffer), &dwNumberOfBytesRead, NULL);
 		pBuffer->buff = Buffer;
 		pBuffer->nLen = sizeof(Buffer);
@@ -645,7 +647,6 @@ BOOL CServerDlg::HandleIO(PTHREAD_OBJ pThread, PBUFFER_OBJ pBuffer, HWND hWnd)
 			else {// 发送文件
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输开始"), 0);
 				SendFile(pSend, hWnd);
-				Sleep(500);
 				::PostMessage(hWnd, WM_MY_FILE, (WPARAM)("传输结束"), 0);
 			}
 		}
@@ -1024,7 +1025,6 @@ void CServerDlg::AssignToFreeThread(HWND hWnd, PBUFFER_OBJ pBuffer)
 //工作线程，负责处理客户的I/O请求
 DWORD WINAPI CServerDlg::ServerThread(LPVOID lpVoid)
 {
-	// Sleep(10000);
 	//取得本线程对象的指针和窗口对象
 	ServerThreadParam *sParam =(ServerThreadParam*)lpVoid;
 	int test = sParam->test;
