@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.npy": "python",
+        "winapifamily.h": "c"
+    }
+}
