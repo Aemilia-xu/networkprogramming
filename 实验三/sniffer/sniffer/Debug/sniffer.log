@@ -1,11 +1,7 @@
 ﻿  源.cpp
-e:\0college\0 4th_1\networkprogramming\实验三\sniffer\sniffer\源.cpp(39): warning C4326: “main”的返回类型应为“int”而非“void”
-e:\0college\0 4th_1\networkprogramming\实验三\sniffer\sniffer\源.cpp(58): warning C4996: 'gethostbyname': Use getaddrinfo() or GetAddrInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  d:\windows kits\10\include\10.0.17763.0\um\winsock2.h(2219): note: 参见“gethostbyname”的声明
-e:\0college\0 4th_1\networkprogramming\实验三\sniffer\sniffer\源.cpp(97): warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  d:\windows kits\10\include\10.0.17763.0\um\winsock2.h(1849): note: 参见“inet_ntoa”的声明
-e:\0college\0 4th_1\networkprogramming\实验三\sniffer\sniffer\源.cpp(98): warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  d:\windows kits\10\include\10.0.17763.0\um\winsock2.h(1849): note: 参见“inet_ntoa”的声明
-e:\0college\0 4th_1\networkprogramming\实验三\sniffer\sniffer\源.cpp(101): warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  d:\windows kits\10\include\10.0.17763.0\um\winsock2.h(1849): note: 参见“inet_ntoa”的声明
-  sniffer.vcxproj -> E:\0College\0 4th_1\networkprogramming\实验三\sniffer\Debug\sniffer.exe
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(93,1): warning C4326: “main”的返回类型应为“int”而非“void”
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(117,15): warning C4996: 'gethostbyname': Use getaddrinfo() or GetAddrInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(126,43): warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(164,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(165,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  sniffer.vcxproj -> E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\Debug\sniffer.exe

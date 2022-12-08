@@ -9,17 +9,17 @@
 // IP头
 typedef struct _IPHeader
 {
-	UCHAR iphVerLen;     //版本号和头长度（各4位）
-	UCHAR ipTOS;         //服务类型
-	USHORT ipLength;     //封包总长度，即整个IP报的长度
-	USHORT ipID;         //封包表示，唯一标识发送的每一个数据报
-	USHORT ipFLags;      //标志
+	UCHAR iphVerLen;     // 版本号和头长度（各4位）
+	UCHAR ipTOS;         // 服务类型
+	USHORT ipLength;     // 封包总长度，即整个IP报的长度
+	USHORT ipID;         // 封包表示，唯一标识发送的每一个数据报
+	USHORT ipFLags;      // 标志
 	UCHAR ipTTL;         // TTL
-	UCHAR ipProtocol;    //协议
-	USHORT ipChecksum;   //校验和
-	ULONG ipSource;      //源IP地址
-	ULONG ipDestination; //目的IP地址
-} IPHeader, *PIPHeader;
+	UCHAR ipProtocol;    // 协议
+	USHORT ipChecksum;   // 校验和
+	ULONG ipSource;      // 源IP地址
+	ULONG ipDestination; // 目的IP地址
+} IPHeader, * PIPHeader;
 
 // TCP头
 typedef struct _TCPHeader
@@ -33,7 +33,7 @@ typedef struct _TCPHeader
 	USHORT windows;          // 16位窗口大小
 	USHORT checksum;         // 16位校验和
 	USHORT urgentPointer;    // 16位紧急数据偏移量
-} TCPHeader, *PTCPHeader;
+} TCPHeader, * PTCPHeader;
 
 // UDP头
 typedef struct _UDPHeader
@@ -43,6 +43,28 @@ typedef struct _UDPHeader
 	USHORT len;					// 16位封包长度
 	USHORT checksum;			// 16位校验和
 } UDPHeader, * PUDPHeader;
+
+// TCP连接记录
+typedef struct _TCPConnection
+{
+	ULONG ipSource;			// 源IP地址
+	ULONG ipDestination;	// 目的IP地址
+	USHORT sourcePort;		// 16位源端口
+	USHORT destinationPort;	// 16位目的端口
+	char count;				// 握手次数
+	_TCPConnection* pPrev;	// prev指针
+	_TCPConnection* pNext;	// next指针
+} connection;
+
+connection connectionHead; // TCP连接链表头
+connection connectionTail; // TCP连接链表尾
+
+void addConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePort, USHORT destinationPort);
+void deleteConnection(connection* p);
+connection* findConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePort, USHORT destinationPort);
+
+void DecodeIPPacket(char* pData, int len);
+void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination);
 
 void DecodeUDPPacket(char* pData)
 {
@@ -79,6 +101,11 @@ void main()
 		exit(0);
 	}
 	system("cls");
+	// 初始化TCP连接链表表头表尾
+	connectionHead.pPrev = NULL;
+	connectionHead.pNext = (&connectionTail);
+	connectionTail.pPrev = (&connectionHead);
+	connectionTail.pNext = NULL;
 	// 1.创建原始套接字
 	SOCKET sRaw = socket(AF_INET, SOCK_RAW, IPPROTO_IP);
 	// 2.获取本地地址
@@ -115,13 +142,144 @@ void main()
 		nRet = ::recv(sRaw, buff, 1024, 0);
 		if (nRet > 0)
 		{
-			// TODO
-			//这里要解析数据包
-			printf("start sniffing\n");
-			return;
-			
+			// 解析数据包
+			DecodeIPPacket(buff, nRet);
 		}
 	}
 	closesocket(sRaw);
 	::WSACleanup();
+}
+
+void DecodeIPPacket(char* pData, int len)
+{
+	IPHeader* pIPHdr = (IPHeader*)pData;
+	in_addr source, dest;
+	char szSourceIp[32], szDestIp[32];
+
+	printf("\n\n-------------------------------\n");
+
+	// 从IP头中取出源IP地址和目的IP地址
+	source.S_un.S_addr = pIPHdr->ipSource;
+	dest.S_un.S_addr = pIPHdr->ipDestination;
+	strcpy(szSourceIp, ::inet_ntoa(source));
+	strcpy(szDestIp, ::inet_ntoa(dest));
+
+	printf("	%s -> %s \n", szSourceIp, szDestIp);
+	// IP头长度
+	int nHeaderLen = (pIPHdr->iphVerLen & 0xf) * sizeof(ULONG);
+
+	switch (pIPHdr->ipProtocol)
+	{
+	case IPPROTO_TCP:
+		// TCP协议
+		printf("Protocol: TCP\n");
+		DecodeTCPPacket(pData + nHeaderLen, len - nHeaderLen, pIPHdr->ipSource, pIPHdr->ipDestination);
+		break;
+	case IPPROTO_UDP:
+		printf("Protocol: UDP\n");
+		// TODO: 调用解析UDP数据包的函数
+		break;
+	case IPPROTO_ICMP:
+		printf("Protocol: ICMP\n");
+		break;
+	}
+}
+
+void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination)
+{
+	TCPHeader* pTCPHdr = (TCPHeader*)pData;
+	connection* p = NULL;
+
+	// 打印端口号
+	printf(" Port: %d -> %d \n", ntohs(pTCPHdr->sourcePort), ntohs(pTCPHdr->destinationPort));
+
+	const char syn = 0x02;
+	const char ack = 0x10;
+
+	switch ((pTCPHdr->flags) & (syn | ack))
+	{
+	case syn:
+		printf("SYN\n");
+		// 如果连接不在链表里，加入链表
+		if (findConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort) == NULL)
+			addConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
+		break;
+	case (syn | ack):
+		printf("SYN+ACK\n");
+		// 如果连接在链表里，表示已经发送过SYN了；设置count为2
+		p = findConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
+		if (p != NULL)
+			p->count = 2;
+		break;
+	case ack:
+		// 在非三次握手时，也会有ack出现；如果链表包含连接且已经握手2次，则该ack属于握手过程，进行输出
+		p = findConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
+		if (p != NULL && p->count == 2)
+		{
+			printf("ACK\n");
+			// 三次握手完成，删除节点
+			deleteConnection(p);
+		}
+		break;
+	}
+
+	// 输出字节数
+	printf("Byte: %d\n", len - 20);
+
+	// 下面还可以根据目的端口号进一步解析应用层协议
+	switch (::ntohs(pTCPHdr->destinationPort))
+	{
+	case 21:
+		break;
+	case 80:
+	case 8080:
+		break;
+	}
+}
+
+void addConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePort, USHORT destinationPort) {
+	connection* p = (connection*)::GlobalAlloc(GPTR, sizeof(connection));
+	if (p != NULL)
+	{
+		// 设置连接信息
+		p->ipSource = ipSource;
+		p->ipDestination = ipDestination;
+		p->sourcePort = sourcePort;
+		p->destinationPort = destinationPort;
+		p->count = 1;
+
+		// 插入链表
+		connectionTail.pPrev->pNext = p;
+		p->pPrev = connectionTail.pPrev;
+		p->pNext = (&connectionTail);
+		connectionTail.pPrev = p;
+	}
+	else
+	{
+		printf("GlobalAlloc Failed.\n");
+	}
+}
+
+void deleteConnection(connection* p) {
+	if (p != NULL)
+	{
+		// 从链表上摘下节点
+		p->pPrev->pNext = p->pNext;
+		p->pNext->pPrev = p->pPrev;
+
+		// 释放空间
+		::GlobalFree(p);
+		p = NULL;
+	}
+}
+
+connection* findConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePort, USHORT destinationPort) {
+	for (connection* p = connectionHead.pNext; p != (&connectionTail); p = p->pNext)
+	{
+		if (p->ipSource == ipSource && p->ipDestination == ipDestination && p->sourcePort == sourcePort && p->destinationPort == destinationPort)
+		{
+			return p;
+		}
+	}
+	return NULL;
 }
