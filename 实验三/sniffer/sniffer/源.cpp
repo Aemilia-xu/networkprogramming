@@ -35,6 +35,38 @@ typedef struct _TCPHeader
 	USHORT urgentPointer;    // 16位紧急数据偏移量
 } TCPHeader, *PTCPHeader;
 
+// UDP头
+typedef struct _UDPHeader
+{
+	USHORT sourcePort;			// 16位源端口
+	USHORT destinationPort;		// 16位目的端口
+	USHORT len;					// 16位封包长度
+	USHORT checksum;			// 16位校验和
+} UDPHeader, * PUDPHeader;
+
+void DecodeUDPPacket(char* pData)
+{
+	UDPHeader* pUDPHdr = (UDPHeader*)pData;
+
+	printf(" Port: %d -> %d \n", ntohs(pUDPHdr->sourcePort), ntohs(pUDPHdr->destinationPort));
+
+	// 下面还可以根据目的端口号进一步解析应用层协议
+	switch (::ntohs(pUDPHdr->destinationPort))
+	{
+	case 53:
+		printf("DNS");
+		break;
+	case 69:
+		printf("TFTP");
+		break;
+	case 161:
+		printf("SNMP");
+		break;
+	default:
+		printf("other udp");
+	}
+}
+
 void main()
 {
 	// WSAStartup
@@ -63,7 +95,7 @@ void main()
 	// 3.将原始套接字绑定到本地地址
 	addr_in.sin_family = AF_INET;
 	addr_in.sin_port = htons(0);
-	memcpy(&addr_in.sin_addr.S_un.S_addr, pHost->h_addr_list[2], pHost->h_length);
+	memcpy(&addr_in.sin_addr.S_un.S_addr, pHost->h_addr_list[2], pHost->h_length);//修改网卡
 	printf("try binding to interface: %s\n", inet_ntoa(addr_in.sin_addr));
 	if (::bind(sRaw, (PSOCKADDR)&addr_in, sizeof(addr_in)) == SOCKET_ERROR)
 	{
