@@ -65,29 +65,7 @@ connection* findConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePor
 
 void DecodeIPPacket(char* pData, int len);
 void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination);
-
-void DecodeUDPPacket(char* pData)
-{
-	UDPHeader* pUDPHdr = (UDPHeader*)pData;
-
-	printf(" Port: %d -> %d \n", ntohs(pUDPHdr->sourcePort), ntohs(pUDPHdr->destinationPort));
-
-	// 下面还可以根据目的端口号进一步解析应用层协议
-	switch (::ntohs(pUDPHdr->destinationPort))
-	{
-	case 53:
-		printf("DNS");
-		break;
-	case 69:
-		printf("TFTP");
-		break;
-	case 161:
-		printf("SNMP");
-		break;
-	default:
-		printf("other udp");
-	}
-}
+void DecodeUDPPacket(char* pData, int len);
 
 void main()
 {
@@ -178,11 +156,37 @@ void DecodeIPPacket(char* pData, int len)
 	case IPPROTO_UDP:
 		// UDP协议
 		printf("Protocol: UDP\n");
-		DecodeUDPPacket(pData + nHeaderLen);
+		DecodeUDPPacket(pData + nHeaderLen, len - nHeaderLen);
 		break;
 	case IPPROTO_ICMP:
 		printf("Protocol: ICMP\n");
 		break;
+	}
+}
+
+void DecodeUDPPacket(char* pData, int len)
+{
+	UDPHeader* pUDPHdr = (UDPHeader*)pData;
+
+	printf("Port: %d -> %d \n", ntohs(pUDPHdr->sourcePort), ntohs(pUDPHdr->destinationPort));
+
+	// 输出字节数
+	printf("Byte: %d\n", len - 8);
+
+	// 下面还可以根据目的端口号进一步解析应用层协议
+	switch (::ntohs(pUDPHdr->destinationPort))
+	{
+	case 53:
+		printf("DNS");
+		break;
+	case 69:
+		printf("TFTP");
+		break;
+	case 161:
+		printf("SNMP");
+		break;
+	default:
+		printf("other udp");
 	}
 }
 
@@ -192,7 +196,7 @@ void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination)
 	connection* p = NULL;
 
 	// 打印端口号
-	printf(" Port: %d -> %d \n", ntohs(pTCPHdr->sourcePort), ntohs(pTCPHdr->destinationPort));
+	printf("Port: %d -> %d \n", ntohs(pTCPHdr->sourcePort), ntohs(pTCPHdr->destinationPort));
 
 	const char syn = 0x02;
 	const char ack = 0x10;
@@ -200,13 +204,13 @@ void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination)
 	switch ((pTCPHdr->flags) & (syn | ack))
 	{
 	case syn:
-		printf("SYN\n");
+		printf(RED "SYN\n" NONE);
 		// 如果连接不在链表里，加入链表
 		if (findConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort) == NULL)
 			addConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
 		break;
 	case (syn | ack):
-		printf(RED "SYN+ACK\n");
+		printf(RED "SYN+ACK\n" NONE);
 		// 如果连接在链表里，表示已经发送过SYN了；设置count为2
 		p = findConnection(ipDestination, ipSource, pTCPHdr->destinationPort, pTCPHdr->sourcePort);
 		if (p != NULL)
@@ -217,7 +221,7 @@ void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination)
 		p = findConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
 		if (p != NULL && p->count == 2)
 		{
-			printf("ACK\n");
+			printf(RED "ACK\n" NONE);
 			// 三次握手完成，删除节点
 			deleteConnection(p);
 		}
