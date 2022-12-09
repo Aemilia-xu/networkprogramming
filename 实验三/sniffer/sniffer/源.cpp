@@ -176,8 +176,9 @@ void DecodeIPPacket(char* pData, int len)
 		DecodeTCPPacket(pData + nHeaderLen, len - nHeaderLen, pIPHdr->ipSource, pIPHdr->ipDestination);
 		break;
 	case IPPROTO_UDP:
+		// UDP协议
 		printf("Protocol: UDP\n");
-		// TODO: 调用解析UDP数据包的函数
+		DecodeUDPPacket(pData + nHeaderLen);
 		break;
 	case IPPROTO_ICMP:
 		printf("Protocol: ICMP\n");
@@ -205,9 +206,9 @@ void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination)
 			addConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
 		break;
 	case (syn | ack):
-		printf("SYN+ACK\n");
+		printf(RED "SYN+ACK\n");
 		// 如果连接在链表里，表示已经发送过SYN了；设置count为2
-		p = findConnection(ipSource, ipDestination, pTCPHdr->sourcePort, pTCPHdr->destinationPort);
+		p = findConnection(ipDestination, ipSource, pTCPHdr->destinationPort, pTCPHdr->sourcePort);
 		if (p != NULL)
 			p->count = 2;
 		break;
@@ -225,16 +226,6 @@ void DecodeTCPPacket(char* pData, int len, ULONG ipSource, ULONG ipDestination)
 
 	// 输出字节数
 	printf("Byte: %d\n", len - 20);
-
-	// 下面还可以根据目的端口号进一步解析应用层协议
-	switch (::ntohs(pTCPHdr->destinationPort))
-	{
-	case 21:
-		break;
-	case 80:
-	case 8080:
-		break;
-	}
 }
 
 void addConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePort, USHORT destinationPort) {
@@ -277,9 +268,7 @@ connection* findConnection(ULONG ipSource, ULONG ipDestination, USHORT sourcePor
 	for (connection* p = connectionHead.pNext; p != (&connectionTail); p = p->pNext)
 	{
 		if (p->ipSource == ipSource && p->ipDestination == ipDestination && p->sourcePort == sourcePort && p->destinationPort == destinationPort)
-		{
 			return p;
-		}
 	}
 	return NULL;
 }
