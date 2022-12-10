@@ -1,7 +1,7 @@
 ﻿  源.cpp
-E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(93,1): warning C4326: “main”的返回类型应为“int”而非“void”
-E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(117,15): warning C4996: 'gethostbyname': Use getaddrinfo() or GetAddrInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(126,43): warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(164,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(165,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(71,1): warning C4326: “main”的返回类型应为“int”而非“void”
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(95,15): warning C4996: 'gethostbyname': Use getaddrinfo() or GetAddrInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(104,43): warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(142,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\sniffer\源.cpp(143,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   sniffer.vcxproj -> E:\class\网络程序设计\上机\3\networkprogramming\实验三\sniffer\Debug\sniffer.exe
